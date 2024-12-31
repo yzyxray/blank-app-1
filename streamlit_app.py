@@ -57,7 +57,7 @@ if uploaded_file:
 
     # 处理数据
     df['Root Domain'] = df['Source url'].apply(extract_root_domain)
-    df['Response URL'] = df['TargetUrl'].apply(get_final_url)
+    df['Response URL'] = df['Root Domain'].apply(get_final_url)
     df['Affid'] = df['Response URL'].apply(lambda x: extract_param(x, "Affid"))
     df['s4'] = df['Response URL'].apply(lambda x: extract_param(x, "s4"))
     df['sub4'] = df['Response URL'].apply(lambda x: extract_param(x, "sub4"))
