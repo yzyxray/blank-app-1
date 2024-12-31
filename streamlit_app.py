@@ -37,16 +37,23 @@ if uploaded_file:
     try:
         # 尝试读取 Excel 文件
         df = pd.read_excel(uploaded_file, engine="openpyxl")
-        st.write("文件读取成功！")
-        st.dataframe(df)
+        
+        # 打印列名以调试
+        st.write("Excel 文件中的列名：", df.columns.tolist())
+
+        # 检查是否存在 'TargetUrl' 列
+        if 'TargetUrl' not in df.columns:
+            st.error("上传的 Excel 文件中没有找到 'TargetUrl' 列，请检查文件格式！")
+        else:
+            # 处理数据
+            df['Response URL'] = df['TargetUrl'].apply(get_final_url)
+            st.write("处理完成！预览结果：")
+            st.dataframe(df)
+
     except ImportError as e:
-        # 捕获 ImportError 错误并提示用户
         st.error("缺少 'openpyxl' 库，请确保它已正确安装！")
-        raise e
     except Exception as e:
-        # 捕获其他异常并提示用户
         st.error(f"无法读取 Excel 文件：{e}")
-        raise e
 
     # 处理数据
     df['Root Domain'] = df['Source url'].apply(extract_root_domain)
