@@ -34,13 +34,19 @@ st.write("上传一个包含URL的Excel文件，我会帮你提取主域名和�
 uploaded_file = st.file_uploader("上传Excel文件", type=["xlsx"])
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file, engine="openpyxl")
-except ImportError as e:
-    st.error("缺少 'openpyxl' 库，请确保它已正确安装！")
-    raise e
-except Exception as e:
-    st.error(f"无法读取 Excel 文件：{e}")
-    raise e
+    try:
+        # 尝试读取 Excel 文件
+        df = pd.read_excel(uploaded_file, engine="openpyxl")
+        st.write("文件读取成功！")
+        st.dataframe(df)
+    except ImportError as e:
+        # 捕获 ImportError 错误并提示用户
+        st.error("缺少 'openpyxl' 库，请确保它已正确安装！")
+        raise e
+    except Exception as e:
+        # 捕获其他异常并提示用户
+        st.error(f"无法读取 Excel 文件：{e}")
+        raise e
 
     # 处理数据
     df['Root Domain'] = df['Source url'].apply(extract_root_domain)
