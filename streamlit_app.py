@@ -37,7 +37,7 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     # 处理数据
-    df['Root Domain'] = df['C'].apply(extract_root_domain)
+    df['Root Domain'] = df['Source url'].apply(extract_root_domain)
     df['Response URL'] = df['TargetUrl'].apply(get_final_url)
     df['Affid'] = df['Response URL'].apply(lambda x: extract_param(x, "Affid"))
     df['s4'] = df['Response URL'].apply(lambda x: extract_param(x, "s4"))
