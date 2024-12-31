@@ -35,6 +35,12 @@ uploaded_file = st.file_uploader("上传Excel文件", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, engine="openpyxl")
+except ImportError as e:
+    st.error("缺少 'openpyxl' 库，请确保它已正确安装！")
+    raise e
+except Exception as e:
+    st.error(f"无法读取 Excel 文件：{e}")
+    raise e
 
     # 处理数据
     df['Root Domain'] = df['Source url'].apply(extract_root_domain)
