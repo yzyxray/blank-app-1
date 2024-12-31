@@ -1,80 +1,79 @@
-import pandas as pd
-import re
-import requests
 import streamlit as st
+import pandas as pd
+import numpy as np
+import pandas as pd
+import aiohttp
+import time
+import asyncio
+st.title('广告链接信息解析')
 
-# 提取主域名
-def extract_root_domain(url):
-    try:
-        return re.search(r"https?://([^/]+)", url).group(1)
-    except AttributeError:
-        return ""
+DATE_COLUMN = 'date/time'
+# 这里配置需要匹配的key
+matched_keys = ["Affid", "s4", "affid", "sub4", "subid", "subid3"]
 
-# 获取最终的Landing Page
-def get_final_url(url):
-    try:
-        response = requests.get(url, timeout=10)
-        return response.url
-    except Exception as e:
-        return ""
 
-# 提取参数值
-def extract_param(url, param):
-    try:
-        match = re.search(rf"{param}=([^&]+)", url)
-        return match.group(1) if match else ""
-    except Exception as e:
-        return ""
+@st.cache_resource
+async def extract_url_async(target_urls, results=[], results_url_map={}):
+    async with aiohttp.ClientSession() as session:
+        percent_complete = 0
+        for index, url in enumerate(target_urls):
+            percent_complete = int((index + 1) / len(target_urls) * 100)
+            my_bar.progress(percent_complete, text=f'解析进度：{percent_complete}%')
+            result = {}
+            if url in results_url_map:
+                results.append(results_url_map[url])
+            else:
+                try:
+                    print("current url", url)
+                    async with session.get(url, timeout=60) as response:
+                        result["reponse url"] = str(response.url)
+                        query = response.url.query
+                        for m_key in matched_keys:
+                            if m_key in query:
+                                result[m_key] = query[m_key]
 
-# Streamlit 应用界面
-st.title("Excel 文件处理工具")
-st.write("上传一个包含URL的Excel文件，我会帮你提取主域名和相关参数！")
+                        results_url_map[url] = result
+                except Exception as e:
+                    print(e)
+                    results_url_map[url] = "error"
+                finally:
+                    results.append(result)
 
-# 上传文件
-uploaded_file = st.file_uploader("上传Excel文件", type=["xlsx"])
 
-if uploaded_file:
-    try:
-        # 尝试读取 Excel 文件
-        df = pd.read_excel(uploaded_file, engine="openpyxl")
-        
-        # 打印列名以调试
-        st.write("Excel 文件中的列名：", df.columns.tolist())
+@st.cache_data
+def convert_df(df):
+    # IMPORTANT: Cache the conversion to prevent computation on every rerun
+    return df.to_csv().encode('utf-8')
 
-        # 检查是否存在 'TargetUrl' 列
-        if 'TargetUrl' not in df.columns:
-            st.error("上传的 Excel 文件中没有找到 'TargetUrl' 列，请检查文件格式！")
-        else:
-            # 处理数据
-            df['Response URL'] = df['TargetUrl'].apply(get_final_url)
-            st.write("处理完成！预览结果：")
-            st.dataframe(df)
 
-    except ImportError as e:
-        st.error("缺少 'openpyxl' 库，请确保它已正确安装！")
-    except Exception as e:
-        st.error(f"无法读取 Excel 文件：{e}")
+data_path = st.file_uploader("上传excel文件")
+if data_path:
+    google_sheet_df = pd.read_excel(data_path)
+    edited_df = st.data_editor(google_sheet_df.head(50))
+    progress_text = "Operation in progress. Please wait."
 
-    # 处理数据
-    df['Root Domain'] = df['Source url'].apply(extract_root_domain)
-    df['Response URL'] = df['Root Domain'].apply(get_final_url)
-    df['Affid'] = df['Response URL'].apply(lambda x: extract_param(x, "Affid"))
-    df['s4'] = df['Response URL'].apply(lambda x: extract_param(x, "s4"))
-    df['sub4'] = df['Response URL'].apply(lambda x: extract_param(x, "sub4"))
-    df['affid'] = df['Response URL'].apply(lambda x: extract_param(x, "affid"))
-
-    # 显示处理后的数据
-    st.write("处理完成！预览结果：")
-    st.dataframe(df)
-
-    # 提供下载链接
-    output_file = "processed_data.xlsx"
-    df.to_excel(output_file, index=False)
-
-    with open(output_file, "rb") as file:
+    # 这里不用管，主要逻辑在里面，一路运行就可以了；
+    clicked = st.button('start generate')
+    # st.write(edited_df)
+    if clicked:
+        my_bar = st.progress(0, text=progress_text)
+        # 这里运行下会开始慢慢跑，下面有进度条
+        target_urls = google_sheet_df["Target url"].iloc[1:].to_list()
+        loops = asyncio.new_event_loop()
+        results = []
+        results_url_map = {}
+        loops.run_until_complete(extract_url_async(
+            target_urls, results, results_url_map))
+        valid_results = [{"target_url": k} | v for k,
+                         v in results_url_map.items() if type(v) is dict]
+        results_df = pd.DataFrame(valid_results)
+        # 这里是最后的输出，把输出的路径改一下，不然就会在同一个文件夹下
+        merged_df = google_sheet_df.merge(
+            results_df, left_on="Target url", right_on="target_url", how="left")
+        st.write(merged_df)
         st.download_button(
-            label="下载处理后的文件",
-            data=file,
-            file_name="processed_data.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="Download data as CSV",
+            data=convert_df(merged_df),
+            file_name='large_df.csv',
+            mime='text/csv',
         )
