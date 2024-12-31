@@ -34,7 +34,7 @@ st.write("上传一个包含URL的Excel文件，我会帮你提取主域名和�
 uploaded_file = st.file_uploader("上传Excel文件", type=["xlsx"])
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+    df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     # 处理数据
     df['Root Domain'] = df['C'].apply(extract_root_domain)
